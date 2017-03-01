@@ -1,0 +1,553 @@
+<#include "/base/base.htm"/>
+<#macro css>
+    <link rel="stylesheet" href="resource/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="resource/css/cem.css?v=2952680bec"/>
+    <link rel="stylesheet" href="resource/css/jquery-ui.min.css"/>
+    <link rel="stylesheet" href="resource/css/jquery.dataTables.min.css"/>
+    <link rel="stylesheet" href="resource/css/zTreeStyle/zTreeStyle.css"/>
+    <link rel="stylesheet" href="resource/css/jquery.viewer.css" />
+    <link rel="stylesheet" href="resource/css/oabill.css" />
+</#macro>
+
+<#macro content>
+	<input type="hidden" id="billType" name="billType" value="${billType}"><!-- 单据类型 -->
+    <input type="hidden" id="billId" name="billId" value="${billId}"/>
+    <input type="hidden" value="${billStatus}" id="billStatus" name="billStatus"/><!-- 单据状态 -->
+    <input type="hidden" value="${orgId}" id="orgId" name="orgId"/>
+    <input type="hidden" value="${pageStatus}" id="pageStatus" name="pageStatus"/><!-- 页面类型 -->
+    <input type="hidden" value="${uploadUrl}" id="uploadUrl" name="uploadUrl"/> <!-- 上传url -->
+    
+    <input type="hidden" id="currentNode" name="currentNode" value="${nodeId}"/> <!-- 节点ID -->
+    <input type="hidden" value="${noticeType}" id="noticeType" name="noticeType"/><!-- 消息类型 -->
+    <input type="hidden" id="baseId" name="baseId" value="${baseId}"/> <!-- 流程主表ID -->
+    
+    <#if billNumber> 
+	  <input type="hidden" id="billNo" name="billNo" value="${billNumber}"/>
+	<#else> 
+	  <input type="hidden" id="billNo" name="billNo" value="${billNo}"/>
+	</#if> 
+	
+    <input type="hidden" value="" id="previewPageStatus" name="previewPageStatus"/><!-- 预览类型 -->
+    <!-- 表单区域 -->
+    <div id="vueRoot">
+    <form id="preview_form">
+        <div class="fee-container-form container-fluid">
+    		<!-- 加载自定义表单内容区域 -->
+  			<div class="fee-editor-m clearfix" id="edit_area">
+  				<div class="fee-mob-header" id="cem_title">
+  					<div class="fee-mob-header-title" v-cloak>{{metadata.header.title}}
+  						<div class="fee-mob-title-menu" v-if="this.$store.getters.isUpdatePage">
+                            <a href="javascript:void(0)" class="dropdown-toggle" id="dropdownMenu1" data-toggle="dropdown"
+                               aria-haspopup="true" aria-expanded="true">更多操作<span class="glyphicon glyphicon-triangle-bottom"></span>
+                            </a>
+                            <ul class="dropdown-menu" aria-labelledby="dropdownMenu1">
+                                 <li id="sendBill" v-show="btnshow.sendBill"><a href="#" @click="sendInfoMenu" ><i class="glyphicon glyphicon-user"></i>抄送</a>
+                                 </li>
+                                 <li id="add_endorseli" v-show="btnshow.addEndorseli"><a href="#" @click="sendEndorsementMenu"><i id="add_endorse" class="glyphicon glyphicon-edit"></i>加签</a>
+                                 </li>                                        
+                                 <li><a href="#" @click="_showHistory" v-show="btnshow.showHistory"><i class="glyphicon glyphicon-calendar" id="flow_history"></i>审批历史</a>
+                                 </li>
+                             </ul>
+                        </div>
+  						<ol id="title_print" class="">
+   							<li id="bill_print" @click="printBill" v-show="btnshow.bill_print"><span class="glyphicon glyphicon-print"></span>打印单据</li>
+  							<!-- <li id="pastPrint" @click="printQrcode"><span class="glyphicon glyphicon-qrcode"></span>打印二维码</li> -->
+						</ol>
+					</div>
+					<bill-header v-bind:main="metadata.header.main" v-bind:contents="billdata.main" v-bind:access="metadata.header.access" ref="headerBillArea"></bill-header>        
+				</div>
+                  
+                <bill-detail v-if="hasAreaByName('detail')" v-bind:tmpl="metadata.detail" v-bind:contents="billdata.detail" v-bind:auth="areaAuth.detail" ref="detailBillArea"></bill-detail>
+                <bill-share v-if="hasAreaByName('share')" v-bind:tmpl="metadata.share" v-bind:contents="billdata.share" v-bind:auth="areaAuth.share" ref="shareBillArea"></bill-share>
+                <bill-payment v-if="hasAreaByName('payment')" v-bind:tmpl="metadata.payment" v-bind:contents="billdata.payment" v-bind:auth="areaAuth.payment" ref="paymentBillArea"></bill-payment>  			
+	  			<div class="fee-mob mt15" id="other_textarea">
+	                <div class="fee-mob-title" data-edit_area="edit">
+	                        备注
+	                    </div>
+	                <div class="container-fluid cem-receipt-annex fee-annex">
+	                    <textarea class="form-control" v-model="billdata.main.main_remark" :disabled="!areaAuth.remark.isEdit" rows="2" id="remark" required="required" placeholder="最多输入100个汉字" maxlength="100"></textarea>
+	                </div>
+	            </div>
+	            
+	            <div class="fee-mob" id="advice" v-if="btnshow.advice">
+					<div class="fee-mob-title" data-edit_area="edit">审批意见</div>
+					<div class="container-fluid cem-receipt-annex fee-annex">
+						<div class="row">
+							<textarea class="form-control" v-model="billdata.main.main_advice" rows="3" style="resize: none;" id="opinion" maxlength="100" placeholder="最多输入100个汉字"></textarea>
+						</div>
+					</div>
+				</div>
+
+	            <bill-attach ref="attachBillArea"></bill-attach>
+			</div>
+			<div style="text-align: center; margin: 20px 0;" v-cloak>
+				<button type="button" class="btn btn-primary cem-margin-r" id="consent" v-show="btnshow.consent" @click="commentAddPass('consent')">同意</button>
+				<button type="button" class="btn btn-primary cem-margin-r" id="reject" v-show="btnshow.reject" @click="commentAddPass('reject')" style="background:#f48a00;border:#f48a00">拒绝</button>
+			</div>
+  			<div style="text-align:center;" v-cloak>
+              <button type="button" class="btn btn-primary cem-margin-r" v-show="btnshow.bill_submit && btnshow.bill_submit_flow" @click="submitBill" id="bill_submit">提交审批</button>
+		      <button type="button" class="btn btn-primary cem-margin-r" v-show="btnshow.bill_save" @click="saveBill" id="bill_save">保存单据</button>
+              <button type="button" class="btn btn-primary cem-margin-r" v-show="btnshow.back_flow" @click="backFlow" id="back_flow">退回流程</button>
+              <button type="button" class="btn btn-primary cem-margin-r" v-show="btnshow.backout_flow" @click="backoutFlow" id="backout_flow">撤回</button>
+              <button type="button" class="btn btn-primary cem-margin-r" v-show="btnshow.bill_finish" @click="billFinish" id="bill_finish">流程终止</button>
+              <button type="button" class="btn btn-warning gray cem-margin-r" v-show="btnshow.bill_delete" @click="deleteBill" id="bill_delete" style="background:#f48a00;border:1px solid #f48a00;">删除单据</button>
+              <button type="button" class="btn btn-primary gray cem-margin-r" v-show="btnshow.flow_reminders" @click="flowReminder" id="flow_reminders" style="background:#f48a00;border:1px solid #f48a00;">催办</button>
+          </div>
+    	</div>    	
+    </form>
+
+    <modal-tree ref="modal_tree"></modal-tree>
+    <modal-history ref="modal_history"></modal-history>
+    <modal-endorsement ref="modal_endorsement" v-if="this.$store.getters.isUpdatePage"></modal-endorsement>
+    <modal-sendinfo ref="modal_sendinfo" v-if="this.$store.getters.isUpdatePage"></modal-sendinfo>
+    <modal-flowback ref="modal_flowback" v-if="this.$store.getters.isUpdatePage"></modal-flowback>
+    <modal-advice ref="modal_advice" v-if="this.$store.getters.isUpdatePage"></modal-advice>
+    </div>
+	
+	<div>
+	  <img id="view-image" class="hide" src="about:blank" alt="Picture">
+	</div>    
+    <script type="text/x-template" id="bill-header-template">
+		<div class="fee-mob-header-main">
+			<div class="fee-mob-username" v-show="main.main_requserId.show">
+				<span class="font-size: 16px;" @click="userDelegateHandler">{{content.main_requserId.text}}</span>
+				<span v-show="main.main_reqDept.show">{{content.main_reqDept.text}}</span>    
+			</div>
+			<div class="fee-mob-cont" v-show="main.main_reqOrg.show">            
+				<span>{{content.main_reqOrg.text}}</span>
+			</div>                  
+			<div class="fee-mob-sum" v-show="main.main_originalCurrencySum.show">
+				<span><strong>{{content.main_originalCurrencySum}}</strong>元</span>                  
+			</div>                   
+			<div class="fee-mob-cont" v-show="main.main_billNo.show">
+				<span>{{content.main_billNo}}</span>                
+			</div>                  
+			<div class="fee-mob-tcode">
+				<span class="glyphicon glyphicon-qrcode" @mouseover.stop="showQrcode = true;" @mouseout.stop="showQrcode = false;"></span>
+				<div v-bind:style="{display: showQrcode? 'block': 'none'}"></div>                  
+			</div>
+		</div>
+	</script>
+
+	<script type="text/x-template" id="bill-detail-template">
+        <div class="fee-mob" data-resource="detail" name="detail">
+            <div class="fee-mob-title" data-edit_area="edit">{{tmpl.title}}
+                <span class="glyphicon glyphicon-plus pull-right" v-if="auth.isEdit" @click="addDetailItemHandler"></span>
+            </div>
+            <div class="fee-mid-tier" style="overflow-x: auto">
+          		<div class="fee-mob-main" v-for="(ctrldata, index) in ctrldataArr" :key="ctrldata._key">
+           	  		<div class="fee-template-box" v-for="item in tmpl.items">
+        			    <component v-bind:is="$billToCtrlComponetName(item.prop.ctrltype)" v-bind:ctrltmpl="item" 
+                        v-bind:rowkey="ctrldata._key" v-model="ctrldata[item.prop.name]"></component>
+        			</div>
+        			<div class="glyphicon glyphicon-trash fee-trash" v-if="auth.isEdit" @click="removeDetailItemHandler(index)" title="删除整行">
+        			</div>
+        		</div>
+            </div>
+        </div>
+	</script>
+	
+	<script type="text/x-template" id="bill-share-template">
+        <div class="fee-mob" data-resource="share" name="share">
+            <div class="fee-mob-title" data-edit_area="edit">{{tmpl.title}}
+            </div>
+            <div class="fee-mid-tier" style="overflow-x: auto">
+          		<div class="fee-mob-main" v-for="(ctrldata, index) in ctrldataArr" :key="ctrldata._key">
+           	  		<div class="fee-template-box" v-for="item in tmpl.items">
+        			    <component v-bind:is="$billToCtrlComponetName(item.prop.ctrltype)" v-bind:ctrltmpl="item" 
+                        v-bind:rowkey="ctrldata._key" v-model="ctrldata[item.prop.name]"></component>
+        			</div>
+        			<div class="glyphicon glyphicon-trash fee-trash" v-if="auth.isEdit" @click="removeShareItemHandler(index)" title="删除整行">
+        			</div>
+        		</div>
+            </div>
+        </div>
+	</script>
+	
+	<script type="text/x-template" id="bill-payment-template">
+        <div class="fee-mob" data-resource="payment" name="payment">
+            <div class="fee-mob-title" data-edit_area="edit">{{tmpl.title}}
+                <span class="glyphicon glyphicon-plus pull-right" v-if="auth.isEdit" @click="addPaymentItemHandler"></span>
+            </div>
+            <div class="fee-mid-tier" style="overflow-x: auto">
+          		<div class="fee-mob-main" v-for="(ctrldata, index) in ctrldataArr" :key="ctrldata._key">
+           	  		<div class="fee-template-box" v-for="item in tmpl.items">
+        			    <component v-bind:is="$billToCtrlComponetName(item.prop.ctrltype)" v-bind:ctrltmpl="item" 
+                        v-bind:rowkey="ctrldata._key" v-model="ctrldata[item.prop.name]"></component>
+        			</div>
+        			<div class="glyphicon glyphicon-trash fee-trash" v-if="auth.isEdit" @click="removePaymentItemHandler(index)" title="删除整行">
+        			</div>
+        		</div>
+            </div>
+        </div>
+	</script>
+    
+    <!--附件 -->
+    <script type="text/x-template" id="bill-attach-template">
+        <div class="fee-mob" id="plugin">
+            <div class="fee-mob-title">
+                    附件
+                <div class="pull-right">
+                    <span class="glyphicon glyphicon-exclamation-sign"></span> 当前上传数：<input id="cur_plug_count" style="width:30px;border:none;outline:none;border-bottom:1px solid #ddd;margin-right:15px;text-align:center" disabled="disabled" v-bind:value="attachCount">
+                </div>
+            </div>
+            <div class="container-fluid cem-receipt-annex fee-annex">
+                <div class="row">
+                    <div class="cem-receipt-annex-tit">影像附件</div>
+                    <div class="cem-receipt-annex-con">
+                        <p>（5M以内，支持格式：gif、jpg、png、jpeg）</p>
+                        <dl class="cem-receipt-loading" id="img_container" v-show="auth.imgUpload.show">
+                            <dd v-for="img in imageAtts">
+                                <img :src="img.url" width="100" height="100" @click="viewImage(img)">
+                                <i class="glyphicon glyphicon-remove-circle" @click="deleteAttach(img)" v-show="auth.imgUpload.enable"></i>
+                            </dd>
+                            <dd v-show="ctrlstatus.imgUpload.show">
+                                <img src="resource/images/nopictues.jpg" width="100" height="100">
+                                <i class="glyphicon glyphicon-remove-circle"></i>
+                                <span><div class="progress" v-bind:style="{width: ctrlstatus.imgUpload.progress}"></div><font></font></span>
+                            </dd>
+                            <dt id="img_upload" v-show="auth.imgUpload.enable"></dt>
+                        </dl>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="cem-receipt-annex-tit">其他附件</div>
+                    <div class="cem-receipt-annex-con">
+                        <p>（5M以内，支持格式：doc、docx、ppt、pptx、pdf、rar、txt、xls、xlsx、zip）</p>
+                        <p class="fee-annex-con-tit" id="file_upload" v-show="auth.fileUpload.enable"></p>
+                        <div class="fee-annex-con cem-receipt-affix" id="file_c" v-show="otherAtts.length > 0 || ctrlstatus.fileUpload.show">
+                            <p v-for="att in otherAtts" v-show="auth.fileUpload.show">
+                                <img :src="att.imgsrc">{{att.name}}<b>({{ (new Number(att.filesize)/1024).toFixed(2)}}KB)</b>
+                                <a href="javascript:void(0)" @click="deleteAttach(att)" v-show="auth.fileUpload.enable">删除</a>
+								<a :href="att.url" :download="att.name" data-opration="download">下载</a>
+                            </p>
+                            <p v-show="ctrlstatus.fileUpload.show">
+                                <img :src="ctrlstatus.fileUpload.iconSrc">{{ctrlstatus.fileUpload.filename}}
+                                <b>({{ctrlstatus.fileUpload.filesize.toFixed(2)}}KB)</b><span>
+                                <span class="progress" v-bind:style="{width: ctrlstatus.fileUpload.progress}"></span></span><font></font><a class="hide" href="javascript:void(0);">删除</a></p>
+                            <p class="fee-annex-con-tit" id="file_upload"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+    
+    <!-- 加载树形结构时的 -->
+    <script type="text/x-template" id="modal-tree-template">
+        <div class="modal fade" id="modal_ztree" tabindex="-1" role="dialog">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">请选择数据</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="input-group cem-padding-b">
+                          <input id="tree_search" type="text" class="form-control" placeholder="搜索节点">
+                          <span class="input-group-btn"><button class="btn btn-default" type="button" id="tree_search_btn">搜索</button></span>
+                        </div>
+                        <ul id="ztreeDetail" class="ztree"></ul>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-primary" @click="ztreeSaveHandler">确定</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+    
+    <!-- 关联单据信息弹出层 -->
+    <script type="text/x-template" id="modal-tree-template">
+        <div class="modal fade bs-example-modal-lg" tabindex="-1" role="dialog" id="dialog_dynamic_form">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <input type="hidden" name="relevanceType" id="relevanceType">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">关联单据信息</h4>
+                    </div>
+                    <div class="modal-body"></div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal" aria-label="Close">关闭</button>
+                        <button type="button" class="btn btn-primary" id="dynamic_form_btn">确认</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+    
+    <!--审批历史 -->
+    <script type="text/x-template" id="modal-history-template">
+        <div class="modal fade" id="history_modal" tabindex="-1" role="dialog">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">审批历史</h4>
+                    </div>
+                    <div>
+                        <div class="container-fluid cem-margin-t">
+                            <ul class="nav nav-tabs" role="tablist">
+                                <li role="presentation" class="active"><a href="#History_tab1" aria-controls="History_tab1"
+                                                                          role="tab" data-toggle="tab">审批节点</a></li>
+                            </ul>
+                            <div class="tab-content">
+                                <div role="tabpanel" class="tab-pane active" id="History_tab1">
+                                    <div class="modal-body row">
+                                        <div class="cem-history">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </script>
+    
+    <!-- 审批人员替换弹出框 -->
+    <script type="text/x-template" id="modal-sendinfo-template">
+        <div class="modal fade bs-example-modal-lg" id="sendInfo" tabindex="-1" role="dialog">
+            <form action="" id="" method="">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                            <h4 class="modal-title">被抄送人查询</h4>
+                        </div>
+                        <div class="modal-body clearfix cem-authorize-m-label">
+                            <div class="flex">
+                                <div class="flex">
+                                    <label for="" class="cem-send-label">工号:</label>
+                                    <div>
+                                        <input type="text" id="empNo" v-model="param.empNo" class="form-control" maxlength="20">
+                                    </div>
+                                </div>
+                                <div class="flex">
+                                    <label for="" class="cem-send-label">部门:</label>
+                                    <div>
+                                        <input type="text" id="deptName" v-model="param.deptName" class="form-control" maxlength="100">
+                                    </div>
+                                </div>
+                                <div class="flex clearflex">
+                                    <div class="text-center" style="width:100px;">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex mt10">
+                                <div class="flex">
+                                    <label for="" class="cem-send-label">员工姓名:</label>
+                                    <div>
+                                        <input type="text" id="empName" v-model="param.empName" class="form-control" maxlength="64">
+                                    </div>
+                                </div>
+                                <div class="flex">
+                                    <label for="" class="cem-send-label">手机号码:</label>
+                                    <div>
+                                        <input type="text" id="empMobileNo" v-model="param.empMobileNo" class="form-control" maxlength="48">
+                                    </div>
+                                </div>
+                                <div class="flex clearflex">
+                                    <div class="text-center" style="width:100px;">
+                                        <button type="button" class="btn btn-primary" id="s_search" @click="sendToSearch">查询</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <table id="send_table_example" class="table table-striped" style="width:100%;">
+                                <thead>
+                                    <tr>
+                                        <th data-value="id"><input type="checkbox" id="send_table_chk_all"></th>
+                                        <th data-value="name">工号</th>
+                                        <th data-value="name1">员工姓名</th>
+                                        <th data-value="name2">部门</th>
+                                        <th data-value="name3">手机号</th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-default" data-dismiss="modal" aria-label="Close">关闭</button>
+                            <button type="button" class="btn btn-primary" id="s_save" @click="sendInfoSaveHandler">确认</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </script>
+
+    <!-- 加签 -->
+    <script type="text/x-template" id="modal-endorsement-template">
+        <div class="modal fade" id="Endorsement" tabindex="-1" role="dialog">
+            <form action="" id="endorsement_form">
+                <div class="modal-dialog modal-lg" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                    aria-hidden="true">&times;</span></button>
+                            <h4 class="modal-title">加签</h4>
+                        </div>
+                        <div class="modal-body">
+                            <div class="cem-add-ment cem-margin-b">
+                                <span>完成后到</span>
+                                <select class="form-control" id="endorsement_current" name="endorsement_current">
+                                    <option value="0">本人</option>
+                                    <option value="1">下一环节</option>
+                                </select>
+                                
+                            </div>
+                           <div style="border-bottom: 1px dashed #e5e5e5;margin:15px -15px; clear:both;"></div>
+                            <div class="container-fluid cem-table">
+                                <div id="prompt" class="text-danger pull-left" style="display:none;  padding: 8px 0 0 5px;"><span class="glyphicon glyphicon-warning-sign cem-margin-r"></span><font></font></div>
+                                <table id="table_example_add" class="table table-striped" style="width:100%;">
+                                    <thead>
+                                    <tr>
+                                        <th><input type="checkbox" id="table_example_add_all" style="display:none"/></th>
+                                        <th>工号</th>
+                                        <th>人员</th>
+                                        <th>部门</th>
+                                        <th style=""></th>
+                                    </tr>
+                                    </thead>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                            <button type="submit" class="btn btn-primary" id="table_example_add_ok" @click="endorsementSaveHandler">确认</button>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </script>
+    
+    <!-- 单据退回加载的表单弹出层 -->
+    <script type="text/x-template" id="modal-flowback-template">
+    	<div class="modal fade" id="dialog_back" tabindex="-1" role="dialog">
+        <form class="form-horizontal" id="back_form">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">退回任务</h4>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="processName" class="col-sm-3 control-label">流程主题</label>
+
+                            <div class="col-sm-9">
+                                <input type="text" class="form-control" id="processName" name="processName"
+                                       placeholder="流程主题" disabled="disabled" v-model="param.processName">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="returnReason" class="col-sm-3 control-label">退回原因</label>
+
+                            <div class="col-sm-9">
+                                <select name="returnReason" id="returnReason" class="form-control" v-model="param.returnReason">
+									<option v-for="reason in opt.backReason" :value="reason.id">{{reason.name}}</option>
+								</select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="returnNode" class="col-sm-3 control-label">退回环节</label>
+							<input type="hidden" name="returnNodeId" id="returnNodeId" />
+                            <div class="col-sm-9">
+                                <select name="returnNode" id="returnNode" class="form-control" v-model="param.returnNode">
+									<option v-for="node in opt.returnNode" :value="node.nodeId">{{node.nodeName}}</option>								
+								</select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="submitType" class="col-sm-3 control-label">再提交类型</label>
+
+                            <div class="col-sm-9">
+                                <select name="submitType" id="submitType" class="form-control" v-model="param.submitType">
+                                    <option value="">请选择</option>
+                                    <option value="001">直送至我</option>
+                                    <option value="002">逐级审批</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="returnMessage" class="col-sm-3 control-label">退回说明</label>
+
+                            <div class="col-sm-9">
+                                <textarea name="returnMessage" id="returnMessage" cols="30" rows="5"
+                                          class="form-control" placeholder="退回说明,最多输入100个汉字"  maxlength="100" v-model="param.returnMessage"></textarea>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="form_next" class="col-sm-3 control-label">执行者</label>
+
+                            <div class="col-sm-9">
+                                <table id="back_table" class="table table-striped" style="width:100%;margin:0;padding:0">
+                                    <thead>
+                                    <th><input type="checkbox" id="back_table_all" disabled="disabled"/></th>
+                                    <th>部门</th>
+                                    <th>岗位</th>
+                                    <th>人员</th>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                    	<button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-primary" id="back_save" @click="backSaveHandler">确认</button>
+                    </div>
+                </div>
+                <!-- /.modal-content -->
+            </div>
+            <!-- /.modal-dialog -->
+        </form>
+    	</div>
+    </script>
+    
+    <!-- 提交成功后加载的表单弹出层 -->
+    <script type="text/x-template" id="modal-advice-template">
+    <div class="modal fade" id="dialog_form" tabindex="-1" role="dialog">
+        <form class="form-horizontal" id="dialog_form_form">
+
+            <!-- 流程定义ID -->
+
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+                                aria-hidden="true">&times;</span></button>
+                        <h4 class="modal-title">提交选项</h4>
+                    </div>
+                    <div class="modal-body">                    
+                        <div class="form-group">
+                            <label for="form_explain" class="col-sm-2 control-label" id="approvalLabel">审批意见</label>
+
+                            <div class="col-sm-10">
+                                <textarea name="form_explain" id="form_explain" maxlength="100" cols="30" rows="5" class="form-control"
+                                           >{{form_explain}}</textarea>
+                            </div>
+                        </div>                        
+                    </div>
+                    <div class="modal-footer">
+                    	<button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+                        <button type="button" class="btn btn-primary" id="dialog_form_save" @click="adviceSaveHandler">确认</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+	</script>
+	
+    <script src="resource/js/public/promise.js"></script>
+    <script data-main="resource/js/private/bill/requestBill/billIndex.js?v=de1dbef188"
+            src="resource/js/require.js"></script>
+</#macro>
