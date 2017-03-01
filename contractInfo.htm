@@ -1,0 +1,667 @@
+<#include "/base/base.htm"/>
+<#macro css>
+    <link rel="stylesheet" href="resource/css/jquery-ui.min.css"/>
+    <link rel="stylesheet" href="resource/css/jquery.dataTables.min.css"/>
+    <link rel="stylesheet" href="resource/css/zTreeStyle/zTreeStyle.css"/>
+    <link rel="stylesheet" href="resource/css/jquery.viewer.css" />
+    <link rel="stylesheet" href="resource/css/contract.css" />
+</#macro>
+<#macro script>
+	<script src="resource/js/public/promise.js"></script>
+    <script data-main="resource/js/private/ht/contract/contract.js?v=01531647b1"
+            src="resource/js/require.js"></script>
+</#macro>
+<#macro content>
+        <#include "/ftl/ui/navigation.ftl" />	
+	
+	<div class="container-fluid" id="vueRoot">
+		<input type="hidden" value="${uploadUrl}" id="uploadUrl" name="uploadUrl"/> <!-- 上传url -->
+		
+		<div>
+        	<div class="cem-bar-plue">
+              <a class="btn" href="javascript:history.go(-1)"
+                 style="border-color:transparent;color:#fff;padding-left:1px; float: left;">
+                  <i class="icon-cem-57 pull-left cem-goback-icon cem-p-goback-icon"></i>
+              </a>
+              <span class="cem-bar-title" v-cloak>{{basetitle}}</span>
+        	</div>
+        </div>
+	    
+	    <div class="cem-content-area">
+        <contract-base v-bind:base-info="baseInfo"></contract-base> 
+		
+		<contract-detail v-bind:base-info="baseInfo" ref="contractDetail">
+        </contract-detail>
+        </div>
+        <div class="cem-footer-bar" v-show="baseInfo.isShowdetail" v-cloak>
+        	<button v-show="btnStatus.submit" class="btn btn-primary" @click="submitContract">提交审核</button>
+        	<button v-show="btnStatus.change" class="btn btn-primary" @click="changeContract">变更</button>
+        	<button v-show="btnStatus.confirm" class="btn btn-primary" @click="confirmContract">确认</button>
+        	<button v-show="btnStatus.pending" class="btn btn-primary" @click="pendingContract">暂挂</button>
+        	<button v-show="btnStatus.cancelpending" class="btn btn-primary" @click="cancelpendingContract">取消暂挂</button>
+        	<button v-show="btnStatus.terminate" class="btn btn-warning" @click="terminateContract">终止</button>
+        </div>
+        
+        <!-- 变更备注弹出层 -->
+	    <div class="modal fade" id="remark_dialog_form" tabindex="-1" role="dialog">
+	        <form class="form-horizontal">
+	        	<div class="modal-dialog">
+	                <div class="modal-content">
+	                    <div class="modal-header">
+	                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+	                                aria-hidden="true">&times;</span></button>
+	                        <h4 class="modal-title">输入备注</h4>
+	                    </div>
+	                    <div class="modal-body">
+	                        <div class="form-group">
+	                            <label class="col-sm-2 control-label">备注</label>
+	
+	                            <div class="col-sm-10">
+	                                <textarea name="form_explain" maxlength="100" cols="30" rows="5" class="form-control" v-model="other.remark"
+	                                           ></textarea>
+	                            </div>
+	                        </div>
+	                    </div>	
+	                    <div class="modal-footer">
+	                    	<button type="button" class="btn btn-default" data-dismiss="modal">关闭</button>
+	                        <button type="button" class="btn btn-primary" @click="submiChangeWithtRemark">确认</button>
+	                    </div>
+	                </div>
+	                <!-- /.modal-content -->
+	            </div>
+	            <!-- /.modal-dialog -->
+	        </form>
+	    </div>
+	    <!-- /.modal -->        
+	</div>
+	
+	<!--单张图片-->
+	<div>
+	  <img id="view-image" class="hide" src="about:blank" alt="Picture">
+	</div>
+	
+	<script type="text/x-template" id="contractBase-template">
+		<div id="base_info">
+    		<div class="cem-form-header" v-show="isShowField">
+    			<span class="ctt-title">{{basedata.contractDate}}</span>
+    			<span class="cem-status-logo">
+    				<span>{{basedata.contractState}}</span>
+    				<img src="resource/images/business_img_1.png" alt="">							
+    			</span>
+    		</div>
+        	<div class="pr-150">	            		
+        		<div class="row">
+		    		<div class="col-md-6">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">合同编号:</label>
+		    				<div class="col-sm-8">
+		    					<input type="text" class="form-control" :disabled="isRead" v-model="basedata.code">
+		    				</div>
+		    			</div>
+		    		</div>
+		    		<div class="col-md-6">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">合同名称:</label>
+		    				<div class="col-sm-8">
+		    					<input type="text" class="form-control" :disabled="isRead" v-model="basedata.name">
+		    				</div>
+		    			</div>
+		    		</div>
+		    	</div>			    	
+		    	<div class="row">
+		    		<div class="col-md-6">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">合同类型:</label>
+		    				<div class="col-sm-8">
+								<select class="form-control" :disabled="isRead" v-model="basedata.type">
+									<option value="">请选择..</option>
+									<option v-for="ctttype in cttTypes" :value="ctttype.objId">{{ctttype.objName}}</option>
+								</select>
+		    				</div>
+		    			</div>
+		    		</div>    	
+		    		<div class="col-md-6">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">责任人:</label>
+		    				<div class="col-sm-8">
+								<autoinput v-bind:value="{key: basedata.captain, value: basedata.captainName}" 
+									v-on:input="basedata.captain = $event.key; basedata.captainName = $event.value; " :disabled="isRead" type="3"></autoinput>
+		    					<!--<input type="text" class="form-control" :disabled="isRead" v-model="basedata.captain">-->
+		    				</div>
+		    			</div>
+		    		</div>		    		
+				</div>
+				<div class="row">		    		   	
+		    		<div class="col-md-6">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">开始日期:</label>
+		    				<div class="col-sm-8">
+								<datepicker type="text" :disabled="isRead" v-model="basedata.startDate" readonly="readonly" placeholder="开始日期"></datepicker>
+		    					<!--<input type="text" class="form-control" :disabled="isRead" v-model="basedata.startDate" data-fieldtype="date" readonly="readonly">-->
+		    				</div>
+		    			</div>
+		    		</div>
+					<div class="col-md-6">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">结束日期:</label>
+		    				<div class="col-sm-8">
+								<datepicker type="text" :disabled="isRead" v-model="basedata.endDate" readonly="readonly" placeholder="结束日期"></datepicker>		    				
+		    				</div>
+		    			</div>
+		    		</div>
+				</div>
+		    	<div class="row">		    		
+					<div class="col-md-6" v-show="isShowField">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">创建人:</label>
+		    				<div class="col-sm-8">
+		    					<input type="text" class="form-control" disabled="disabled" v-model="basedata.employeeName">
+		    				</div>
+		    			</div>
+		    		</div>
+		    		<div class="col-md-6" v-show="isShowField">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">机构:</label>
+		    				<div class="col-sm-8">
+		    					<input type="text" class="form-control" disabled="disabled" v-model="basedata.corpName">
+		    				</div>
+		    			</div>
+		    		</div>
+				</div>
+				<div class="row">
+		    		<div class="col-md-6" v-show="isShowField">
+		    			<div class="row">
+		    				<label class="control-label pull-left cem-formlabel">部门:</label>
+		    				<div class="col-sm-8">
+		    					<input type="text" class="form-control" disabled="disabled" v-model="basedata.deptName">
+		    				</div>
+		    			</div>
+		    		</div>
+		    	</div>
+        	</div>
+
+        	<div class="cem-form-inline-toolbar" v-if="baseInfo.isEditable == true">
+        		<button class="btn btn-primary" @click="saveBaseInfo">{{isRead? '修改' : '保存'}}</button>
+        		<!--<button class="btn btn-primary" @click="submitBaseInfo">提交</button>-->
+        	</div>
+    	</div>
+	</script>
+
+	<script type="text/x-template" id="contractEntity-template">
+		<div>
+			<div class="tab-btn-row" v-if="baseInfo.isEditable == true">
+				<button class="btn btn-primary" @click="add_entity">添加</button>
+				<!--<button class="btn btn-primary" @click="update_entity">编辑</button>-->
+				<button class="btn btn-primary" @click="delete_entity">删除</button>
+			</div>
+
+		  	<table id="entity_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th></th>
+		                <th>对象代码</th>
+		                <th>对象名称</th>
+		                <th>账户</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+
+	<script type="text/x-template" id="contractPlan-template">
+		<div>
+			<div class="tab-btn-row" v-if="baseInfo.isEditable == true">
+				<button class="btn btn-primary" @click="add_entity">添加</button>
+				<button class="btn btn-primary" @click="update_entity">编辑</button>
+				<button class="btn btn-primary" @click="delete_entity">删除</button>
+			</div>
+
+		  	<table id="plan_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th></th>
+		            	<th>付款计划编号</th>
+		                <th>对象代码</th>
+		                <th>金额</th>
+		                <th>付款方式</th>
+		                <th>支付金额</th>
+		                <th>剩余可支付金额</th>
+		                <th>备注</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+	
+	<script type="text/x-template" id="contractBenefit-template">
+		<div>
+			<div class="tab-btn-row" v-if="baseInfo.isEditable == true">
+				<button class="btn btn-primary" @click="add_entity">添加</button>
+				<button class="btn btn-primary" @click="update_entity">编辑</button>
+				<button class="btn btn-primary" @click="delete_entity">删除</button>
+			</div>
+
+		  	<table id="benefit_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th></th>
+		                <th>开始日期</th>
+		                <th>结束日期</th>
+		                <th>金额</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+	
+	<script type="text/x-template" id="contractAuth-template">
+		<div>
+			<div class="tab-btn-row" v-if="baseInfo.isEditable == true">
+				<button class="btn btn-primary" @click="add_auth">添加</button>
+				<button class="btn btn-primary" @click="delete_auth">删除</button>
+			</div>
+
+		  	<table id="auth_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th></th>
+		                <th>合同权限类型</th>
+		                <th>合同权限表达式</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+	
+	<script type="text/x-template" id="contractBill-template">
+		<div>
+			<div>申请信息</div>
+		  	<table id="billApply_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th>单据编号</th>
+		                <th>单据名称</th>
+		                <th>申请人</th>
+		                <th>备注</th>
+		                <th>单据金额</th>
+		            </tr>
+	            </thead>
+	        </table>
+
+	        <div>借款/预支信息</div>
+		  	<table id="billDebt_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th>单据编号</th>
+		                <th>单据名称</th>
+		                <th>申请人</th>
+		                <th>备注</th>
+		                <th>单据金额</th>
+		                <th>付款金额</th>
+		            </tr>
+	            </thead>
+	        </table>
+
+	        <div>报销信息</div>
+		  	<table id="billReimburse_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th>单据编号</th>
+		                <th>单据名称</th>
+		                <th>申请人</th>
+		                <th>备注</th>
+		                <th>单据金额</th>
+		                <th>付款金额</th>
+		                <th>报销金额</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+
+	<script type="text/x-template" id="contractPay-template">
+		<div>
+		  	<table id="pay_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th>单据编号</th>
+		                <th>单据名称</th>
+		                <th>申请人</th>
+		                <th>付款金额</th>
+		                <th>收款对象</th>
+		                <th>账号</th>
+		                <th>付款时间</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+
+	<script type="text/x-template" id="contractHistory-template">
+		<div>
+		  	<table id="history_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		            	<th>处理时间</th>
+		                <th>处理人</th>
+		                <th>操作类型</th>
+		                <th>处理意见</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+
+	<script type="text/x-template" id="contractAttach-template">
+		<div>
+			<div v-show="baseInfo.isEditable == true">
+				<input id="upload_hide_btn" style="display:none;" type="file">
+				<button class="btn btn-primary mt5" @click="upload_attach">上传</button>
+			</div>							
+			<table id="attch_table" class="table table-striped" style="width:100%;">
+	            <thead>
+		            <tr>
+		                <th>文件名称</th>
+		                <th>附件大小</th>
+		                <th>操作</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>
+	</script>
+
+  <script type="text/x-template" id="contractDetail-template">
+  	<div id="detail_info" v-show="baseInfo.isShowdetail">
+  		<ul class="nav nav-tabs">
+			  <li class="active"><a href="#contractEntity" data-toggle="tab">合同对象</a></li>
+			  <li><a href="#contractPlan" data-toggle="tab">付款计划</a></li>
+			  <li><a href="#contractBenefit" data-toggle="tab">合同受益期</a></li>
+			  <li><a href="#contractAuth" data-toggle="tab">合同权限</a></li>
+			  <li v-show="isShowTab"><a href="#contractBill" data-toggle="tab" >单据信息</a></li>
+			  <li v-show="isShowTab"><a href="#contractPay" data-toggle="tab">支付信息</a></li>
+			  <li v-show="isShowTab"><a href="#contractHistory" data-toggle="tab">合同历史</a></li>
+			  <li><a href="#contractAttach" data-toggle="tab">合同附件</a></li>
+			</ul>
+  		<div class="tab-content">
+			<div class="tab-pane active" id="contractEntity">
+				<contract-entity v-bind:base-info="baseInfo" v-on:operationFire="operationFire" ref="entityContract"></contract-entity>
+			</div>
+			<div class="tab-pane" id="contractPlan">
+				<contract-plan v-bind:base-info="baseInfo" v-on:operationFire="operationFire" ref="planContract"></contract-plan>
+			</div>
+			<div class="tab-pane" id="contractBenefit">
+				<contract-benefit v-bind:base-info="baseInfo" v-on:operationFire="operationFire" ref="benefitContract"></contract-benefit>
+			</div>
+			<div class="tab-pane" id="contractAuth">
+				<contract-auth v-bind:base-info="baseInfo" v-on:operationFire="operationFire" ref="authContract"></contract-auth>
+			</div>
+			<div class="tab-pane" id="contractBill" v-show="isShowTab">
+				<contract-bill v-bind:base-info="baseInfo" v-on:operationFire="operationFire" ref="billContract"></contract-bill>
+			</div>
+			<div class="tab-pane" id="contractPay" v-show="isShowTab">
+				<contract-pay v-bind:base-info="baseInfo" v-on:operationFire="operationFire" ref="payContract"></contract-pay>
+			</div>
+			<div class="tab-pane" id="contractHistory" v-show="isShowTab">
+				<contract-history v-bind:base-info="baseInfo" v-on:operationFire="operationFire" ref="historyContract"></contract-history>
+			</div>
+			<div class="tab-pane" id="contractAttach">
+				<contract-attach v-bind:base-info="baseInfo"></contract-attach>
+			</div>
+		</div>
+
+		<modal-entity ref="entityModal" v-bind:base-info="baseInfo" v-on:reloadDataFire="reloadDataFire"></modal-entity>
+		<modal-plan ref="planModal" v-bind:base-info="baseInfo" v-on:reloadDataFire="reloadDataFire"></modal-plan>
+		<modal-benefit ref="benefitModal" v-bind:base-info="baseInfo" v-on:reloadDataFire="reloadDataFire"></modal-benefit>
+		<modal-auth ref="authModal" v-bind:base-info="baseInfo" v-on:reloadDataFire="reloadDataFire"></modal-auth>
+	</div>
+  </script>
+	
+	<!--modal-->
+	<script type="text/x-template" id="entityModal-template">
+		<!--<div>
+		  	<table id="entitymodal_table" class="table table-striped" style="width:100%; padding: 0px">
+	            <thead>
+		            <tr>
+		                <th>对象代码</th>
+		                <th>对象名称</th>
+		                <th>账户</th>
+		            </tr>
+	            </thead>
+	        </table>
+        </div>-->
+		<div class="modal fade" tabindex="-1" role="dialog">
+	        <form class="form-horizontal" method="post">
+	            <div class="modal-dialog">
+	                <div class="modal-content">
+	                    <div class="modal-header">
+	                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+	                                aria-hidden="true">&times;</span></button>
+	                        <h4 class="modal-title">{{type=='A'? '新增': '修改'}}</h4>
+	                    </div>
+	                    <div class="modal-body">
+							<vue-table v-bind:opt="tableOpt" ref="entityChooseTable"></vue-table>
+							<!--<div class="form-group">
+	                            <label class="col-sm-2 control-label">选择对象</label>
+
+	                            <div class="col-sm-10">
+									<select class="form-control" v-model="content.id">
+										<option value="">请选择..</option>
+										<option v-for="opt in targetOpts" :value="opt.id">{{opt.name}}</option>
+									</select>
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label class="col-sm-2 control-label">对象代码</label>
+
+	                            <div class="col-sm-10">
+	                                <input type="text" class="form-control" v-model="content.code"
+	                                       placeholder="对象代码" readonly="readonly">
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label for="inputEmail3" class="col-sm-2 control-label">对象名称</label>
+
+	                            <div class="col-sm-10">
+	                                <input type="text" class="form-control" v-model="content.name"
+	                                       placeholder="对象名称" readonly="readonly" >
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label for="inputEmail3" class="col-sm-2 control-label">账号</label>
+
+	                            <div class="col-sm-10">
+	                                <input type="text" class="form-control" v-model="content.bankAccountNo"
+	                                       placeholder="账号" readonly="readonly">
+	                            </div>
+	                        </div>-->
+	                    </div>
+	                    <div class="modal-footer">
+	                        <button type="button" class="btn btn-default" data-dismiss="modal" aria-label="Close">关闭
+	                        </button>
+	                        <button type="button" class="btn btn-primary" @click="saveEntityInfo">确认</button>
+	                    </div>
+	                </div>
+	                <!-- /.modal-content -->
+	            </div>
+	            <!-- /.modal-dialog -->
+	        </form>
+	    </div>
+	</script>
+	
+	<script type="text/x-template" id="planModal-template">
+		 <div class="modal fade" tabindex="-1" role="dialog">
+	        <form class="form-horizontal" method="post">
+	            <div class="modal-dialog">
+	                <div class="modal-content">
+	                    <div class="modal-header">
+	                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+	                                aria-hidden="true">&times;</span></button>
+	                        <h4 class="modal-title">{{type=='A'? '新增': '修改'}}</h4>
+	                    </div>
+	                    <div class="modal-body">
+	                        <div class="form-group">
+	                            <label class="col-sm-2 control-label">收款对象</label>
+
+	                            <div class="col-sm-10">
+									<select class="form-control" v-model="content.target">
+										<option value="">请选择..</option>
+										<option v-for="opt in targetidOpts" :value="opt.id">{{opt.name}}</option>
+									</select>
+	                                <!--<input type="text" class="form-control" v-model="content.target"
+	                                       placeholder="收款对象" maxlength="64">-->
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label class="col-sm-2 control-label">金额</label>
+
+	                            <div class="col-sm-10">
+	                                <input type="number" class="form-control" step="0.01" v-model:number="content.totalAmount"
+	                                       placeholder="金额" maxlength="32" >
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label class="col-sm-2 control-label">付款方式</label>
+
+	                            <div class="col-sm-10">
+									<select class="form-control" v-model="content.payWay">
+										<option value="">请选择..</option>
+										<option v-for="opt in paywayOpts" :value="opt.id">{{opt.name}}</option>
+									</select>
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label class="col-sm-2 control-label">备注</label>
+
+	                            <div class="col-sm-10">
+	                                <textarea type="text" class="form-control" v-model="content.remark"
+	                                       placeholder="备注" maxlength="32">
+	                            </div>
+	                        </div>
+	                    </div>
+	                    <div class="modal-footer">
+	                        <button type="button" class="btn btn-default" data-dismiss="modal" aria-label="Close">关闭
+	                        </button>
+	                        <button type="button" class="btn btn-primary" @click="saveEntityInfo">确认</button>
+	                    </div>
+	                </div>
+	                <!-- /.modal-content -->
+	            </div>
+	            <!-- /.modal-dialog -->
+	        </form>
+	    </div>
+	</script>
+
+	<script type="text/x-template" id="benefitModal-template">
+		 <div class="modal fade" tabindex="-1" role="dialog">
+	        <form class="form-horizontal" method="post">
+	            <div class="modal-dialog">
+	                <div class="modal-content">
+	                    <div class="modal-header">
+	                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+	                                aria-hidden="true">&times;</span></button>
+	                        <h4 class="modal-title">{{type=='A'? '新增': '修改'}}</h4>
+	                    </div>
+	                    <div class="modal-body">
+	                    	<input type="hidden" v-model="content.id">
+	                        <div class="form-group">
+	                            <label class="col-sm-2 control-label">开始日期</label>
+
+	                            <div class="col-sm-10">
+									<datepicker type="text" v-model="content.startTime" readonly="readonly" placeholder="开始日期"></datepicker>
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label for="inputEmail3" class="col-sm-2 control-label">结束日期</label>
+
+	                            <div class="col-sm-10">
+									<datepicker type="text" v-model="content.endTime" readonly="readonly" placeholder="结束日期"></datepicker>
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                            <label for="inputEmail3" class="col-sm-2 control-label">金额</label>
+
+	                            <div class="col-sm-10">
+	                                <input type="text" class="form-control" v-model="content.amount"
+	                                       placeholder="金额" maxlength="32">
+	                            </div>
+	                        </div>
+	                    </div>
+	                    <div class="modal-footer">
+	                        <button type="button" class="btn btn-default" data-dismiss="modal" aria-label="Close">关闭
+	                        </button>
+	                        <button type="button" class="btn btn-primary" @click="saveEntityInfo">确认</button>
+	                    </div>
+	                </div>
+	                <!-- /.modal-content -->
+	            </div>
+	            <!-- /.modal-dialog -->
+	        </form>
+	    </div>
+	</script>
+
+	<script type="text/x-template" id="authModal-template">
+		 <div class="modal fade" tabindex="-1" role="dialog">
+	        <form class="form-horizontal" method="post">
+	            <div class="modal-dialog">
+	                <div class="modal-content">
+	                    <div class="modal-header">
+	                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span
+	                                aria-hidden="true">&times;</span></button>
+	                        <h4 class="modal-title">{{type=='A'? '新增': '修改'}}</h4>
+	                    </div>
+	                    <div class="modal-body">
+	                        <div class="form-group">
+	                            <span class="col-sm-3">合同权限类型</span>
+
+	                            <div class="col-sm-3">
+	                                <input type="checkbox" value="R" id="chk-use" v-model="content.authArr"
+	                                       placeholder="使用" maxlength="64">
+	                                <span for="chk-use">使用</span>	                                
+	                            </div>
+	                            <div class="col-sm-3">
+	                            	<input type="checkbox" value="U" id="chk-update" v-model="content.authArr"
+	                                       placeholder="编辑" maxlength="64">
+	                                <span for="chk-update">编辑</span>
+	                            </div>
+	                        </div>
+	                        <div class="form-group">
+	                        	<div class="col-sm-12">
+									<span class="control-label">合同权限对象表达式</span>
+	                        	</div>	                            
+	                        </div>
+	                        <div class="form-group">
+	                        	<div v-for="(expre, index) in content.expreArr" class="mb10" style="height: 32px;">
+		                            <div class="col-sm-4">
+										<select class="form-control" v-model="expre.type">
+											<option value="">请选择..</option>
+											<option v-for="opt in expretypeOpts" :value="opt.key">{{opt.value}}</option>
+										</select>
+		                            </div>
+		                            <div class="col-sm-5">
+										<autoinput v-model:value="expre.value" v-bind:type="expre.type"></autoinput>
+		                                <!--<input type="text" class="form-control" v-model="expre.valueText"
+		                                       placeholder="请输入" data-inputtype="auto">
+										<input type="hidden" class="form-control" v-model="expre.valueKey">-->
+		                            </div>
+		                            <div class="col-sm-3 cem-row-btn">
+		                                <button class="btn btn-primary" v-if="index == 0" type="button" @click="addExpress">添加逻辑</button>
+		                                <button v-else class="btn btn-warning" type="button" @click="deleteExpress(index)">删除</button>
+		                            </div>
+		                        </div>
+	                        </div>
+	                    </div>
+	                    <div class="modal-footer">
+	                        <button type="button" class="btn btn-default" data-dismiss="modal" aria-label="Close">关闭
+	                        </button>
+	                        <button type="button" class="btn btn-primary" @click="saveEntityInfo">确认</button>
+	                    </div>
+	                </div>
+	                <!-- /.modal-content -->
+	            </div>
+	            <!-- /.modal-dialog -->
+	        </form>
+	    </div>
+	</script>
+
+</#macro>
+ 
